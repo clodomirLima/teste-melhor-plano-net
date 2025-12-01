@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
 import {
   getPlans,
-  handleThing,
   searchPlans,
   PlanSearchFilters,
+  filterAndNormalizePlans,
+  getRecommendedPlans,
+  RecommendationFilters,
 } from "../services/planService";
 import { Plan } from "../models/plan";
 
@@ -32,8 +34,26 @@ export function filteredPlans(req: Request, res: Response) {
     ? parseFloat(req.query.maxPrice as string)
     : undefined;
   const plans = getPlans();
-  const filtered = handleThing(plans, minSpeed, maxPrice);
+  const filtered = filterAndNormalizePlans(plans, minSpeed, maxPrice);
   res.json(filtered);
+}
+
+export async function recommendPlans(req: Request, res: Response) {
+  const { city, maxPrice, operator, profile } = req.query;
+  const filters: RecommendationFilters = {
+    maxPrice: maxPrice ? Number(maxPrice) : undefined,
+    operator: operator ? String(operator) : undefined,
+    city: city ? String(city) : undefined,
+  };
+
+  const recommended = getRecommendedPlans({
+    ...filters
+  });
+
+  res.json({
+    recommended,
+    melhorRecomendacao: recommended[0] ?? null
+  });
 }
 
 export function planSearch(req: Request, res: Response) {
