@@ -257,7 +257,6 @@ export function searchPlans(
   page: number = 1,
   pageSize: number = 5
 ): PaginatedPlans {
-  const filtersKey = JSON.stringify(filters);
 
   const {
     minPrice = null,
@@ -270,19 +269,15 @@ export function searchPlans(
   } = filters;
 
   let filtered = allPlansMock;
-  if (lastFiltersCache !== filtersKey) {
 
-    if (minPrice !== null) filtered = filtered.filter(p => p.price >= minPrice);
-    if (maxPrice !== null) filtered = filtered.filter(p => p.price <= maxPrice);
-    if (minDataCap !== null) filtered = filtered.filter(p => p.dataCap >= minDataCap);
-    if (maxDataCap !== null) filtered = filtered.filter(p => p.dataCap <= maxDataCap);
+  if (minPrice !== null) filtered = filtered.filter(p => p.price >= minPrice);
+  if (maxPrice !== null) filtered = filtered.filter(p => p.price <= maxPrice);
+  if (minDataCap !== null) filtered = filtered.filter(p => p.dataCap >= minDataCap);
+  if (maxDataCap !== null) filtered = filtered.filter(p => p.dataCap <= maxDataCap);
 
-    if (operator) filtered = filtered.filter(p => p.operator.toLowerCase() === operator.toLowerCase());
-    if (city) filtered = filtered.filter(p => p.city.toLowerCase() === city.toLowerCase());
-    if (name) filtered = filtered.filter(p => p.name.toLowerCase().includes(name.toLowerCase()));
-    filteredPlansCache = filtered;
-    lastFiltersCache = filtersKey;
-  }
+  if (operator) filtered = filtered.filter(p => p.operator.toLowerCase() === operator.toLowerCase());
+  if (city) filtered = filtered.filter(p => p.city.toLowerCase() === city.toLowerCase());
+  if (name) filtered = filtered.filter(p => p.name.toLowerCase().includes(name.toLowerCase()));
   const total = filtered.length;
   const totalPages = Math.ceil(total / pageSize);
 
