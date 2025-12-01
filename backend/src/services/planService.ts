@@ -249,9 +249,6 @@ export interface RecommendationFilters {
   operator?: string;
 }
 
-let filteredPlansCache: Plan[] | null = null;
-let lastFiltersCache: string | null = null;
-
 export function searchPlans(
   filters: PlanSearchFilters = {},
   page: number = 1,
