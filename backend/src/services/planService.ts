@@ -191,33 +191,38 @@ export function getAllPlans(): Plan[] {
   return allPlansMock;
 }
 
-export function handleThing(
+export function filterAndNormalizePlans(
   plans: Plan[],
   minSpeed?: number,
   maxPrice?: number
 ): Plan[] {
+
   return plans
-    .filter((plan) => {
-      if (minSpeed) {
-        const speedValue = parseInt(plan.speed.replace("Mbps", ""));
-        if (speedValue < minSpeed) {
-          return false;
-        }
-      }
-      return true;
-    })
-    .filter((plan) => {
-      if (maxPrice && plan.price > maxPrice) {
-        return false;
-      }
-      return true;
-    })
-    .map((plan) => {
-      if (plan.price < 100) {
-        return { ...plan };
-      }
-      return plan;
-    });
+    .filter(plan => meetsSpeedRequirement(plan, minSpeed))
+    .filter(plan => meetsPriceRequirement(plan, maxPrice))
+    .map(normalizePlan);
+}
+
+function meetsSpeedRequirement(plan: Plan, minSpeed?: number): boolean {
+  if (!minSpeed) return true;
+
+  const speed = parseInt(plan.speed.replace("Mbps", ""), 10);
+  const result = speed >= minSpeed;
+  return result
+}
+
+function meetsPriceRequirement(plan: Plan, maxPrice?: number): boolean {
+  if (!maxPrice) return true;
+  const result = plan.price <= maxPrice;
+  return result;
+}
+
+function normalizePlan(plan: Plan): Plan {
+  if (plan.price < 100) {
+    return { ...plan };
+  }
+
+  return plan;
 }
 
 export interface PlanSearchFilters {
@@ -238,69 +243,80 @@ export interface PaginatedPlans {
   totalPages: number;
 }
 
-let filteredPlansCache: Plan[] | null = null;
-let lastFiltersCache: string | null = null;
+export interface RecommendationFilters {
+  city?: string;
+  maxPrice?: number;
+  operator?: string;
+}
 
 export function searchPlans(
-  filters: PlanSearchFilters,
+  filters: PlanSearchFilters = {},
   page: number = 1,
   pageSize: number = 5
 ): PaginatedPlans {
-  const filtersKey = JSON.stringify(filters);
 
-  if (lastFiltersCache !== filtersKey) {
-    let filtered = allPlansMock;
-    if (filters.minPrice !== undefined) {
-      filtered = filtered.filter((plan) => plan.price >= filters.minPrice!);
-    }
-    if (filters.maxPrice !== undefined) {
-      filtered = filtered.filter((plan) => plan.price <= filters.maxPrice!);
-    }
-    if (filters.minDataCap !== undefined) {
-      filtered = filtered.filter((plan) => plan.dataCap >= filters.minDataCap!);
-    }
-    if (filters.maxDataCap !== undefined) {
-      filtered = filtered.filter((plan) => plan.dataCap <= filters.maxDataCap!);
-    }
-    if (filters.operator) {
-      filtered = filtered.filter(
-        (plan) =>
-          plan.operator.toLowerCase() === filters.operator!.toLowerCase()
-      );
-    }
-    if (filters.city) {
-      filtered = filtered.filter(
-        (plan) => plan.city.toLowerCase() === filters.city!.toLowerCase()
-      );
-    }
-    if (filters.name) {
-      filtered = filtered.filter((plan) =>
-        plan.name.toLowerCase().includes(filters.name!.toLowerCase())
-      );
-    }
-    filteredPlansCache = filtered;
-    lastFiltersCache = filtersKey;
-  }
+  const {
+    minPrice = null,
+    maxPrice = null,
+    minDataCap = null,
+    maxDataCap = null,
+    operator = '',
+    city = '',
+    name = ''
+  } = filters;
 
-  if (filteredPlansCache) {
-    if (page % 2 === 0) {
-      filteredPlansCache.sort((a, b) => b.price - a.price);
-    } else {
-      filteredPlansCache.sort((a, b) => a.price - b.price);
-    }
-  }
+  let filtered = allPlansMock;
 
-  const total = filteredPlansCache ? filteredPlansCache.length : 0;
+  if (minPrice !== null) filtered = filtered.filter(p => p.price >= minPrice);
+  if (maxPrice !== null) filtered = filtered.filter(p => p.price <= maxPrice);
+  if (minDataCap !== null) filtered = filtered.filter(p => p.dataCap >= minDataCap);
+  if (maxDataCap !== null) filtered = filtered.filter(p => p.dataCap <= maxDataCap);
+
+  if (operator) filtered = filtered.filter(p => p.operator.toLowerCase() === operator.toLowerCase());
+  if (city) filtered = filtered.filter(p => p.city.toLowerCase() === city.toLowerCase());
+  if (name) filtered = filtered.filter(p => p.name.toLowerCase().includes(name.toLowerCase()));
+  const total = filtered.length;
   const totalPages = Math.ceil(total / pageSize);
-  const start = (page - 1) * pageSize;
-  const end = start + pageSize;
-  const plans = filteredPlansCache ? filteredPlansCache.slice(start, end) : [];
 
   return {
-    plans,
+    plans: filtered.slice((page - 1) * pageSize, page * pageSize),
     total,
     page,
     pageSize,
     totalPages,
   };
+}
+
+export function getRecommendedPlans(filters: RecommendationFilters): Plan[] {
+  let plans = allPlansMock;
+  let result: any[] = [];
+
+  const {
+    maxPrice = null,
+    operator = '',
+    city = '',
+  } = filters;
+
+  if (city) result = plans.filter(p => p.city.toLowerCase() === city.toLowerCase());
+
+  if (maxPrice) result = plans.filter(p => p.price <= maxPrice);
+
+  if (operator) result = plans.filter(p => p.operator.toLowerCase() === operator.toLowerCase());
+
+  return result
+    .map(plan => ({
+      ...plan,
+      score: calculateScore(plan, filters)
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function calculateScore(plan: Plan, filters: RecommendationFilters): number {
+  let score = 0;
+
+  if (filters.maxPrice && plan.price <= filters.maxPrice) score += 30;
+  if (filters.city && plan.city.toLowerCase() === filters.city.toLowerCase()) score += 40;
+  if (filters.operator && plan.operator === filters.operator) score += 30;
+
+  return score;
 }
